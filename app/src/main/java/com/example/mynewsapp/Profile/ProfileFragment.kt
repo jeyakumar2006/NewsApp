@@ -4,10 +4,12 @@ package com.example.mynewsapp.Profile
 import android.Manifest
 import android.Manifest.permission.CAMERA
 import android.annotation.SuppressLint
+import android.app.Activity.RESULT_OK
 import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.ContentValues.TAG
 import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
@@ -24,7 +26,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -35,8 +39,14 @@ import com.bumptech.glide.Glide
 import com.example.mynewsapp.R
 import com.example.mynewsapp.Utils.SharedPrefHelper
 import com.example.mynewsapp.databinding.FragmentProfileBinding
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
+import com.google.android.gms.location.LocationSettingsResponse
+import com.google.android.gms.location.SettingsClient
+import com.google.android.gms.tasks.Task
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,6 +93,17 @@ class ProfileFragment : Fragment() {
 
         return binding.root
     }
+
+    val gpsResolutionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode == AppCompatActivity.RESULT_OK) {
+                getUserLocation()
+            } else {
+                binding.location.text = "GPS is still disabled, Kindly enable the GPS"
+            }
+        }
+
+
 
 
     private fun retriveProfileImage() {
@@ -169,8 +190,6 @@ class ProfileFragment : Fragment() {
 
 
         btnGallery.setOnClickListener {
-
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
 
@@ -290,7 +309,7 @@ class ProfileFragment : Fragment() {
         locationPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
                 when {
-                    isGranted -> getUserLocation()
+                    isGranted -> checkIfGPSEnabledThenGetLocation()
                     ContextCompat.checkSelfPermission(
                         requireContext(),
                         Manifest.permission.ACCESS_COARSE_LOCATION
@@ -311,6 +330,45 @@ class ProfileFragment : Fragment() {
             }
     }
 
+    private fun checkIfGPSEnabledThenGetLocation() {
+        val locationRequest = LocationRequest.create()
+            .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+
+        val builder = LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest)
+            .setAlwaysShow(true) // Show GPS dialog even if previously declined
+
+        val client = com.google.android.gms.location.LocationServices.getSettingsClient(requireActivity())
+        val task = client.checkLocationSettings(builder.build())
+
+        task.addOnSuccessListener {
+            getUserLocation()
+        }
+
+        task.addOnFailureListener { exception ->
+            if (exception is ResolvableApiException) {
+                Log.e(TAG, "checkIfGPSEnabledThenGetLocation:::::::1:::::: " )
+                try {
+                    Log.e(TAG, "checkIfGPSEnabledThenGetLocation:::::::2:::::: " )
+                    exception.resolution?.let { intentSender ->
+                        gpsResolutionLauncher.launch(
+                            IntentSenderRequest.Builder(intentSender).build()
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "checkIfGPSEnabledThenGetLocation:::::::3::::: " )
+                    e.printStackTrace()
+                    binding.location.text = "Failed to prompt GPS settings"
+                }
+            } else {
+                Log.e(TAG, "checkIfGPSEnabledThenGetLocation:::::::4:::::: " )
+                binding.location.text = "GPS not supported on this device"
+            }
+        }
+    }
+
+
+
 
     private fun checkAndRequestLocationPermission() {
         when {
@@ -318,7 +376,7 @@ class ProfileFragment : Fragment() {
                 requireContext(),
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED -> {
-                getUserLocation()
+                checkIfGPSEnabledThenGetLocation()
             }
 
             shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) -> {
@@ -350,25 +408,41 @@ class ProfileFragment : Fragment() {
 
     @SuppressLint("MissingPermission")
     private fun getUserLocation() {
-        fusedLocationClient.lastLocation
-            .addOnSuccessListener { location: Location? ->
-                Log.e(TAG, "getUserLocation:::::::::::location:::::::::: $location" )
-                if (location != null) {
-                    val accuracy = location.accuracy
-                    if (accuracy > 1000f) { // >1km = very approximate
-                        binding.location.text =
-                            "Approximate location: accuracy is ${accuracy.toInt()} meters"
+        val locationRequest = LocationRequest.create().apply {
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            interval = 1000
+            numUpdates = 1
+        }
+
+        fusedLocationClient.requestLocationUpdates(
+            locationRequest,
+            object : com.google.android.gms.location.LocationCallback() {
+                override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
+                    val location = result.lastLocation
+                    if (location != null) {
+                        val accuracy = location.accuracy
+                        if (accuracy > 1000f) {
+                            binding.location.text = "Approximate location: accuracy is ${accuracy.toInt()} meters"
+                        } else {
+                            getAddressFromLatLng(location.latitude, location.longitude)
+                        }
                     } else {
-                        getAddressFromLatLng(location.latitude, location.longitude)
+                        binding.location.text = "Location not found"
                     }
-                } else {
-                    binding.location.text = "Location not found"
+
+                    fusedLocationClient.removeLocationUpdates(this)
                 }
-            }
-            .addOnFailureListener {
-                binding.location.text = "Failed to get location"
-            }
+
+                override fun onLocationAvailability(availability: com.google.android.gms.location.LocationAvailability) {
+                    if (!availability.isLocationAvailable) {
+                        binding.location.text = "Location not available"
+                    }
+                }
+            },
+            Looper.getMainLooper()
+        )
     }
+
 
 
     private fun getAddressFromLatLng(lat: Double, lon: Double) {
@@ -419,243 +493,3 @@ class ProfileFragment : Fragment() {
         _binding = null
     }
 }
-
-
-
-
-
-
-
-//import android.Manifest
-//import android.annotation.SuppressLint
-//import android.app.AlertDialog
-//import android.content.Intent
-//import android.content.pm.PackageManager
-//import android.location.Address
-//import android.location.Geocoder
-//import android.location.Location
-//import android.net.Uri
-//import android.os.Build
-//import android.os.Bundle
-//import android.provider.Settings
-//import android.view.LayoutInflater
-//import android.view.View
-//import android.view.ViewGroup
-//import androidx.activity.result.ActivityResultLauncher
-//import androidx.activity.result.contract.ActivityResultContracts
-//import androidx.core.content.ContextCompat
-//import androidx.fragment.app.Fragment
-//import androidx.lifecycle.lifecycleScope
-//import com.bumptech.glide.Glide
-//import com.example.mynewsapp.Utils.SharedPrefHelper
-//import com.example.mynewsapp.databinding.FragmentProfileBinding
-//import com.google.android.gms.location.FusedLocationProviderClient
-//import com.google.android.gms.location.LocationServices
-//import kotlinx.coroutines.Dispatchers
-//import kotlinx.coroutines.launch
-//import kotlinx.coroutines.withContext
-//import java.io.IOException
-//import java.util.Locale
-//
-//class ProfileFragment : Fragment() {
-//
-//    private var _binding: FragmentProfileBinding? = null
-//    private val binding get() = _binding!!
-//
-//    private lateinit var fusedLocationClient: FusedLocationProviderClient
-//    private lateinit var locationPermissionLauncher: ActivityResultLauncher<String>
-//
-//    override fun onCreateView(
-//        inflater: LayoutInflater, container: ViewGroup?,
-//        savedInstanceState: Bundle?
-//    ): View {
-//        _binding = FragmentProfileBinding.inflate(inflater, container, false)
-//
-//        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
-//
-//        setupPermissionLauncher()
-//        checkAndRequestLocationPermission()
-//
-//        binding.name.text = SharedPrefHelper.getString("UserName") ?: "User"
-//        binding.email.text = SharedPrefHelper.getString("Email") ?: "User"
-//        Glide.with(requireContext()).load(SharedPrefHelper.getString("ProfileImage")).into(binding.profilelay)
-//
-//        binding.location.setOnClickListener {
-//            if (ContextCompat.checkSelfPermission(
-//                    requireContext(),
-//                    Manifest.permission.ACCESS_FINE_LOCATION
-//                ) != PackageManager.PERMISSION_GRANTED
-//            ) {
-//                showEnablePreciseLocationDialog()
-//            }
-//        }
-//        return binding.root
-//    }
-//
-//
-//    private fun showEnablePreciseLocationDialog() {
-//
-//        AlertDialog.Builder(requireContext())
-//            .setTitle("Enable Precise Location")
-//            .setMessage("For better results, please enable precise location in your device settings.")
-//            .setPositiveButton("Open Settings") { _, _ ->
-////                startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-//                val intent = Intent().apply {
-//                    action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-//                    data = Uri.fromParts("package", requireActivity().packageName, null)
-//                }
-//                startActivity(intent)
-//
-//            }
-//            .setNegativeButton("Cancel", null)
-//            .show()
-//    }
-//
-//
-//    private fun setupPermissionLauncher() {
-//        locationPermissionLauncher =
-//            registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-//                when {
-//                    isGranted -> getUserLocation()
-//                    ContextCompat.checkSelfPermission(
-//                        requireContext(),
-//                        Manifest.permission.ACCESS_COARSE_LOCATION
-//                    ) == PackageManager.PERMISSION_GRANTED
-//                        -> {
-//                        showEnablePreciseLocationDialog()
-//                        binding.location.text = "Enable Precise Location"
-//                    }
-//
-//                    else -> {
-//                        showPermissionRationaleDialog()
-//                        binding.location.text = "Permission required to get location"
-//                    }
-//
-//                }
-//            }
-//    }
-//
-//    private fun checkAndRequestLocationPermission() {
-//        when {
-//            ContextCompat.checkSelfPermission(
-//                requireContext(),
-//                Manifest.permission.ACCESS_FINE_LOCATION
-//            ) == PackageManager.PERMISSION_GRANTED -> {
-//                getUserLocation()
-//            }
-//
-//            shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) -> {
-//                showPermissionRationaleDialog()
-//            }
-//
-//            else -> {
-//                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-//            }
-//        }
-//    }
-//
-//    private fun showPermissionRationaleDialog() {
-//        AlertDialog.Builder(requireContext())
-//            .setTitle("Location Permission Needed")
-//            .setMessage("This app requires access to your fine location to show your current address.")
-//            .setPositiveButton("Allow") { _, _ ->
-//                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-//            }
-//            .setNegativeButton("Cancel") { dialog, _ ->
-//                dialog.dismiss()
-//                binding.location.text = "Permission required to get location"
-//            }
-//            .show()
-//    }
-//
-////    private fun checkAndRequestLocationPermission() {
-////        if (ContextCompat.checkSelfPermission(
-////                requireContext(),
-////                Manifest.permission.ACCESS_FINE_LOCATION
-////            ) == PackageManager.PERMISSION_GRANTED
-////        ) {
-////            getUserLocation()
-////        } else {
-////            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-////        }
-////    }
-//
-//
-//    @SuppressLint("MissingPermission") // permission is checked before calling
-//    private fun getUserLocation() {
-//        fusedLocationClient.lastLocation
-//            .addOnSuccessListener { location: Location? ->
-//                if (location != null) {
-//                    val accuracy = location.accuracy
-//                    if (accuracy > 1000f) { // >1km = very approximate
-//                        binding.location.text =
-//                            "Approximate location: accuracy is ${accuracy.toInt()} meters"
-//                    } else {
-//                        getAddressFromLatLng(location.latitude, location.longitude)
-//                    }
-//                } else {
-//                    binding.location.text = "Location not found"
-//                }
-//            }
-//            .addOnFailureListener {
-//                binding.location.text = "Failed to get location"
-//            }
-//    }
-//
-////    @SuppressLint("MissingPermission")
-////    private fun getUserLocation() {
-////        fusedLocationClient.lastLocation
-////            .addOnSuccessListener { location: Location? ->
-////                if (location != null) {
-////                    getAddressFromLatLng(location.latitude, location.longitude)
-////                } else {
-////                    binding.location.text = "Location not found"
-////                }
-////            }
-////            .addOnFailureListener {
-////                binding.location.text = "Failed to get location"
-////            }
-////    }
-//
-//    private fun getAddressFromLatLng(lat: Double, lon: Double) {
-//        val geocoder = Geocoder(requireContext(), Locale.getDefault())
-//
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-//            geocoder.getFromLocation(lat, lon, 1, object : Geocoder.GeocodeListener {
-//                override fun onGeocode(addresses: MutableList<Address>) {
-//                    val address = addresses.firstOrNull()?.getAddressLine(0) ?: "No address found"
-//                    requireActivity().runOnUiThread {
-//                        binding.location.text = address
-//                    }
-//                }
-//
-//                override fun onError(errorMessage: String?) {
-//                    requireActivity().runOnUiThread {
-//                        binding.location.text = "Geocoder error: ${errorMessage ?: "Unknown error"}"
-//                    }
-//                }
-//            })
-//        } else {
-//            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-//                try {
-//                    val addresses = geocoder.getFromLocation(lat, lon, 1)
-//                    val addressText =
-//                        addresses?.firstOrNull()?.getAddressLine(0) ?: "No address found"
-//
-//                    withContext(Dispatchers.Main) {
-//                        binding.location.text = addressText
-//                    }
-//                } catch (e: IOException) {
-//                    withContext(Dispatchers.Main) {
-//                        binding.location.text = "Unable to get address"
-//                    }
-//                }
-//            }
-//        }
-//    }
-//
-//    override fun onDestroyView() {
-//        super.onDestroyView()
-//        _binding = null
-//    }
-//}

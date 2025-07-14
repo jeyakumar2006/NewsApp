@@ -80,7 +80,6 @@ class SearchFragment : Fragment() {
             findNavController().navigate(R.id.homeFragment)
         }
 
-
     }
 
 
@@ -88,11 +87,12 @@ class SearchFragment : Fragment() {
         searchBinding.searchEditText.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 val query = s.toString().trim()
+                Log.e(TAG, "afterTextChanged:::::::query::::: $query" )
 
                 if(!query.isNullOrEmpty()){
                     Log.e("TAG", "afterTextChanged:::::::::::1:::::: " )
                     val filteredList = articles.filter { article ->
-                        article.source?.name?.contains(query, ignoreCase = true) == true
+                        article.author?.contains(query, ignoreCase = true) == true
                     }
                     Log.e("TAG", "afterTextChanged:::::::::::filteredList::::: $filteredList" )
 
@@ -132,7 +132,7 @@ class SearchFragment : Fragment() {
 
     private fun setupObservers() {
         viewModel.newsResponseLiveData.observe(viewLifecycleOwner) { newsResponse ->
-            val articles = newsResponse.articles?.toMutableList() ?: mutableListOf()
+             articles = newsResponse.articles?.toMutableList() ?: mutableListOf()
 
             Log.e("TAG", "setupObservers::::::::::::::::articles::::::::: $articles")
 
@@ -154,7 +154,7 @@ class SearchFragment : Fragment() {
             Log.e(TAG, "setupObservers::::::::RD:::articleEntities:::::: $articleEntities")
             Log.e(TAG, "Room DB articles count: ${articleEntities.size}")
 
-            val articles = articleEntities.map {
+            val articlesfromDB = articleEntities.map {
                 Article(
                     author = it.author,
                     title = it.title,
@@ -166,8 +166,10 @@ class SearchFragment : Fragment() {
                     source = com.example.mynewsapp.MVVM.Source(id = null, name = it.sourceName)
                 )
             }
+            articles = articlesfromDB.toMutableList()
 
-            searchAdapter.updateData(articles.toMutableList())
+            searchAdapter.updateData(articles)
+            setupSearchListener()
 
             Log.e(TAG, "setupObservers::::" + articles)
 
