@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">MyNewsApp</string>
+    <string name="default_web_client_id">726545040217-u3kro4rjebvef4kuelv25r17srmh17ue.apps.googleusercontent.com</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="search_author">Search author</string>
+
+</resources>

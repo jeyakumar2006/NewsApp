@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    tools:context=".LoginActivity.LoginActivity">
+
+    <LinearLayout
+        android:id="@+id/centerGroup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/welcomeText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Welcome to NewsApp"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#3498DB" />
+
+        <TextView
+            android:id="@+id/subtitleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Stay updated with the latest headlines"
+            android:textSize="16sp"
+            android:textColor="#3498DB"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:id="@+id/continueWith"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Continue with ,"
+            android:textSize="16sp"
+            android:textColor="#C70039"
+            android:layout_marginTop="50dp" />
+
+        <com.google.android.gms.common.SignInButton
+            android:id="@+id/sign_in_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+           />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

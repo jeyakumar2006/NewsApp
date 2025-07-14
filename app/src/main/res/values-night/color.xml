@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FFFFFFFF</color>
+    <color name="white">#FF000000</color>
+    <color name="iconblack">#FFFFFFFF</color>
+    <color name="grey">#8A8989</color>
+    <color name="purple">#BCADF2</color>
+    <color name="toolbar">#283593</color>
+    <color name="toolbar_text">#FFFFFFFF</color>
+
+    <color name="editTextTextColor">#FF000000</color>
+    <color name="editTextHintColor">#BBBBBB</color>
+
+
+</resources>
