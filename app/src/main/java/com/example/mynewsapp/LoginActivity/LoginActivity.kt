@@ -22,7 +22,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 
 class LoginActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityLoginBinding
+    private lateinit var activityBindingvalue: ActivityLoginBinding
     private lateinit var googleSignInClient: GoogleSignInClient
     private lateinit var firebaseAuth: FirebaseAuth
 
@@ -34,8 +34,8 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        binding = ActivityLoginBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        activityBindingvalue = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(activityBindingvalue.root)
 
         firebaseAuth = FirebaseAuth.getInstance()
 
@@ -46,7 +46,7 @@ class LoginActivity : AppCompatActivity() {
 
         googleSignInClient = GoogleSignIn.getClient(this, gso)
 
-        binding.signInButton.setOnClickListener {
+        activityBindingvalue.signInButton.setOnClickListener {
             if (isNetworkAvailable(this)) {
                 signIn()
             } else {
