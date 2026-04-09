@@ -39,6 +39,8 @@ class LoginActivity : AppCompatActivity() {
 
         firebaseAuth = FirebaseAuth.getInstance()
         Log.e(TAG, "onCreate::::" )
+        Log.e(TAG, "onCreate::::" )
+        Log.e(TAG, "onCreate::::" )
 
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(getString(R.string.default_web_client_id))
